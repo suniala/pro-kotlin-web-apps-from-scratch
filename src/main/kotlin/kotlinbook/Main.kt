@@ -13,10 +13,14 @@ import io.ktor.server.routing.*
 import io.ktor.util.pipeline.*
 import kotlinbook.WebResponse.JsonWebResponse
 import kotlinbook.WebResponse.TextWebResponse
+import kotliquery.Row
+import kotliquery.Session
+import kotliquery.queryOf
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
 import java.util.*
 import javax.sql.DataSource
+import kotliquery.sessionOf
 
 private val log = LoggerFactory.getLogger("kotlinbook.Main")
 
@@ -25,16 +29,11 @@ fun main() {
 
     createAppConfig(System.getenv("KOTLINBOOK_ENV") ?: "local").also { config ->
         log.info("Configuration loaded successfully:\n{}", config.formatForLogging())
+        log.debug("tee1")
 
         embeddedServer(Netty, port = config.httpPort) {
             val dataSource = createAndMigrateDataSource(config)
-            dataSource.connection.use { conn ->
-                conn.createStatement().use { stmt ->
-                    stmt.executeQuery("SELECT 1")
-                }
-            }
-
-            createKtorApplication()
+            createKtorApplication(dataSource)
         }.start(wait = true)
     }
 }
@@ -57,6 +56,13 @@ fun migrateDataSource(dataSource: DataSource) {
 
 fun createAndMigrateDataSource(config: WebappConfig) =
     createDataSource(config).also(::migrateDataSource)
+
+fun mapFromRow(row: Row): Map<String, Any?> {
+    return row.underlying.metaData
+        .let { (1..it.columnCount).map(it::getColumnName) }
+        .map { it to row.anyOrNull(it) }
+        .toMap()
+}
 
 fun createAppConfig(env: String): WebappConfig =
     ConfigFactory
@@ -103,7 +109,21 @@ fun webResponse(handler: suspend PipelineContext<Unit, ApplicationCall>.() -> We
     }
 }
 
-fun Application.createKtorApplication() {
+fun webResponseDb(
+    dataSource: DataSource,
+    handler: suspend PipelineContext<Unit, ApplicationCall>.(
+        dbSess: Session,
+    ) -> WebResponse,
+) = webResponse {
+    sessionOf(
+        dataSource,
+        returnGeneratedKey = true
+    ).use { dbSess ->
+        handler(dbSess)
+    }
+}
+
+fun Application.createKtorApplication(dataSource: DataSource) {
     routing {
         get("/", webResponse {
             TextWebResponse("Hello, World!").header("x-asdf", Date().toString())
@@ -111,7 +131,13 @@ fun Application.createKtorApplication() {
         get("/param_test", webResponse {
             TextWebResponse("The param is: ${call.request.queryParameters["foo"]}")
         })
-        get("/json_test_with_header", webResponse { JsonWebResponse(mapOf("foo" to "bar"))
+        get("/json_test_with_header", webResponse {
+            JsonWebResponse(mapOf("foo" to "bar"))
             .header("x-test-header", "Just a test!")})
+        get("/db_test", webResponseDb(dataSource) { dbSess ->
+            JsonWebResponse(
+                dbSess.single(queryOf("SELECT 1"), ::mapFromRow)
+            )
+        })
     }
 }
