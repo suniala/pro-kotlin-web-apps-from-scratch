@@ -2,6 +2,7 @@ package kotlinbook
 
 import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
+import com.zaxxer.hikari.HikariDataSource
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
@@ -12,8 +13,10 @@ import io.ktor.server.routing.*
 import io.ktor.util.pipeline.*
 import kotlinbook.WebResponse.JsonWebResponse
 import kotlinbook.WebResponse.TextWebResponse
+import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
 import java.util.*
+import javax.sql.DataSource
 
 private val log = LoggerFactory.getLogger("kotlinbook.Main")
 
@@ -24,10 +27,36 @@ fun main() {
         log.info("Configuration loaded successfully:\n{}", config.formatForLogging())
 
         embeddedServer(Netty, port = config.httpPort) {
+            val dataSource = createAndMigrateDataSource(config)
+            dataSource.connection.use { conn ->
+                conn.createStatement().use { stmt ->
+                    stmt.executeQuery("SELECT 1")
+                }
+            }
+
             createKtorApplication()
         }.start(wait = true)
     }
 }
+
+fun createDataSource(config: WebappConfig) =
+    HikariDataSource().apply {
+        jdbcUrl = config.dbUrl
+        username = config.dbUser
+        password = config.dbPassword
+    }
+
+fun migrateDataSource(dataSource: DataSource) {
+    Flyway.configure()
+        .dataSource(dataSource)
+        .locations("db/migration")
+        .table("flyway_schema_history")
+        .load()
+        .migrate()
+}
+
+fun createAndMigrateDataSource(config: WebappConfig) =
+    createDataSource(config).also(::migrateDataSource)
 
 fun createAppConfig(env: String): WebappConfig =
     ConfigFactory
@@ -37,10 +66,12 @@ fun createAppConfig(env: String): WebappConfig =
         .let {
             WebappConfig(
                 httpPort = it.getInt("httpPort"),
-                dbUsername = it.getString("dbUsername"),
+                dbUser = it.getString("dbUser"),
                 dbPassword = it.getString("dbPassword"),
+                dbUrl = it.getString("dbUrl")
             )
         }
+
 
 class KtorJsonWebResponse(val body: Any?, override val status: HttpStatusCode = HttpStatusCode.OK) :
     OutgoingContent.ByteArrayContent() {

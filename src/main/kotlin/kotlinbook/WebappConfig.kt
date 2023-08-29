@@ -4,8 +4,9 @@ import kotlin.reflect.full.declaredMemberProperties
 
 data class WebappConfig(
     val httpPort: Int,
-    val dbUsername: String,
-    val dbPassword: String?
+    val dbUser: String,
+    val dbPassword: String,
+    val dbUrl: String,
 ) {
     fun formatForLogging(): String = WebappConfig::class.declaredMemberProperties
         .sortedBy { it.name }

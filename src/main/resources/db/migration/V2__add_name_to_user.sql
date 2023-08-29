@@ -1,0 +1,2 @@
+ALTER TABLE user_t
+    ADD COLUMN name VARCHAR(255);
