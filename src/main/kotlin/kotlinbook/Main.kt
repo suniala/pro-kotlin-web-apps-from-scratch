@@ -15,12 +15,13 @@ import kotlinbook.WebResponse.JsonWebResponse
 import kotlinbook.WebResponse.TextWebResponse
 import kotliquery.Row
 import kotliquery.Session
+import kotliquery.TransactionalSession
 import kotliquery.queryOf
+import kotliquery.sessionOf
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
-import java.util.*
+import java.util.Date
 import javax.sql.DataSource
-import kotliquery.sessionOf
 
 private val log = LoggerFactory.getLogger("kotlinbook.Main")
 
@@ -123,21 +124,89 @@ fun webResponseDb(
     }
 }
 
+fun webResponseTx(
+    dataSource: DataSource,
+    handler: suspend PipelineContext<Unit, ApplicationCall>.(
+        dbSess: TransactionalSession,
+    ) -> WebResponse,
+) = webResponseDb(dataSource) { dbSess ->
+    dbSess.transaction { txSess ->
+        handler(txSess)
+    }
+}
+
+data class User(
+    val id: Long,
+    val email: String,
+    val tosAccepted: Boolean,
+    val name: String?,
+) {
+    companion object {
+        fun fromRow(row: Map<String, Any?>) = User(
+            id = row["id"] as Long,
+            email = row["email"] as String,
+            name = row["name"] as? String,
+            tosAccepted = row["tos_accepted"] as Boolean,
+        )
+    }
+}
+
 fun Application.createKtorApplication(dataSource: DataSource) {
+    val log = LoggerFactory.getLogger("kotlinbook.Application")
+
     routing {
         get("/", webResponse {
             TextWebResponse("Hello, World!").header("x-asdf", Date().toString())
         })
-        get("/param_test", webResponse {
+        get("/test/param", webResponse {
             TextWebResponse("The param is: ${call.request.queryParameters["foo"]}")
         })
-        get("/json_test_with_header", webResponse {
+        get("/test/json", webResponse {
             JsonWebResponse(mapOf("foo" to "bar"))
-            .header("x-test-header", "Just a test!")})
-        get("/db_test", webResponseDb(dataSource) { dbSess ->
+                .header("x-test-header", "Just a test!")
+        })
+        get("/test/users_raw", webResponseDb(dataSource) { dbSess ->
             JsonWebResponse(
-                dbSess.single(queryOf("SELECT 1"), ::mapFromRow)
+                dbSess.list(queryOf("SELECT name, email FROM user_t"), ::mapFromRow)
             )
+        })
+        get("/test/users_dto", webResponseDb(dataSource) { dbSess ->
+            JsonWebResponse(
+                dbSess.single(queryOf("SELECT * FROM user_t"), ::mapFromRow)?.let(User::fromRow)
+            )
+        })
+        get("/test/failing_tx", webResponseTx(dataSource) { dbSess ->
+            val testInsertEmail = "bwd@example.com"
+            val testUserQuery =
+                queryOf("SELECT count(*) FROM user_t WHERE email = :email", mapOf("email" to testInsertEmail))
+
+            log.debug(
+                "Number of {} users in db in beginning of transaction: {}", testInsertEmail,
+                dbSess.single(testUserQuery, ::mapFromRow)
+            )
+
+            dbSess.update(
+                queryOf(
+                    """
+                        INSERT INTO user_t (email, name, password_hash, tos_accepted)
+                        VALUES ('$testInsertEmail', 'Bwd Zvii', 'rereer', false);
+                    """.trimIndent()
+                )
+            )
+            log.debug(
+                "Number of {} users in db after insert: {}", testInsertEmail,
+                dbSess.single(testUserQuery, ::mapFromRow)
+            )
+            val insertedUser = dbSess.single(
+                queryOf("SELECT name from user_t WHERE email = :email", mapOf("email" to testInsertEmail)),
+                ::mapFromRow
+            )
+            log.debug("Got {} from db before rollback", insertedUser)
+
+            log.debug("Will now cause a rollback")
+            dbSess.single(queryOf("SELECT 1 FROM nonexistanttable"), ::mapFromRow)
+
+            TextWebResponse("This text should not be returned")
         })
     }
 }
