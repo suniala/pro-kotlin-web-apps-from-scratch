@@ -20,8 +20,11 @@ import kotliquery.queryOf
 import kotliquery.sessionOf
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
+import java.lang.RuntimeException
 import java.util.Date
+import java.util.Random
 import javax.sql.DataSource
+import kotlin.random.asKotlinRandom
 
 private val log = LoggerFactory.getLogger("kotlinbook.Main")
 
@@ -135,6 +138,19 @@ fun webResponseTx(
     }
 }
 
+fun <A> dbSavePoint(dbSess: Session, body: () -> A): A {
+    val sp = dbSess.connection.underlying.setSavepoint()
+    return try {
+        body().also {
+            dbSess.connection.underlying.releaseSavepoint(sp)
+        }
+    } catch (e: Throwable) {
+        log.warn("Got exception, will rollback")
+        dbSess.connection.underlying.rollback(sp)
+        throw e
+    }
+}
+
 data class User(
     val id: Long,
     val email: String,
@@ -149,6 +165,11 @@ data class User(
             tosAccepted = row["tos_accepted"] as Boolean,
         )
     }
+}
+
+object TestDataGenerator {
+    private val rnd = Random().asKotlinRandom()
+    fun username() = "Name${rnd.nextLong(100, 1000)}"
 }
 
 fun Application.createKtorApplication(dataSource: DataSource) {
@@ -172,7 +193,7 @@ fun Application.createKtorApplication(dataSource: DataSource) {
         })
         get("/test/users_dto", webResponseDb(dataSource) { dbSess ->
             JsonWebResponse(
-                dbSess.single(queryOf("SELECT * FROM user_t"), ::mapFromRow)?.let(User::fromRow)
+                dbSess.list(queryOf("SELECT * FROM user_t"), ::mapFromRow).map(User::fromRow)
             )
         })
         get("/test/failing_tx", webResponseTx(dataSource) { dbSess ->
@@ -207,6 +228,38 @@ fun Application.createKtorApplication(dataSource: DataSource) {
             dbSess.single(queryOf("SELECT 1 FROM nonexistanttable"), ::mapFromRow)
 
             TextWebResponse("This text should not be returned")
+        })
+        get("/test/partially_committed_tx", webResponseTx(dataSource) { dbSess ->
+            fun insertUser(name: String) = queryOf(
+                """
+                        INSERT INTO user_t (email, name, password_hash, tos_accepted)
+                        VALUES (:email, :name, 'rereer', false);
+                    """.trimIndent(),
+                mapOf("email" to "$name@example.com", "name" to name)
+            )
+
+            val firstTransactionUser = dbSavePoint(dbSess) {
+                val name = TestDataGenerator.username()
+                dbSess.update(insertUser(name))
+                name
+            }
+
+            try {
+                dbSavePoint(dbSess) {
+                    val name = TestDataGenerator.username()
+                    dbSess.update(insertUser(name))
+                    throw RuntimeException("some error after $name was inserted")
+                }
+            } catch (e: Throwable) {
+                log.debug("""Caught error "{}" from dbSavePoint""", e.message)
+            }
+
+            val firstTransactionUserIdAfterSecondTransactionRollback = dbSess.single(
+                queryOf("SELECT id FROM user_t WHERE name = :name", mapOf("name" to firstTransactionUser)),
+                ::mapFromRow
+            )
+
+            JsonWebResponse(firstTransactionUserIdAfterSecondTransactionRollback)
         })
     }
 }
