@@ -18,9 +18,11 @@ import io.ktor.server.routing.*
 import io.ktor.util.pipeline.*
 import kotlinbook.WebResponse.JsonWebResponse
 import kotlinbook.WebResponse.TextWebResponse
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotliquery.Row
 import kotliquery.Session
 import kotliquery.TransactionalSession
@@ -256,13 +258,17 @@ suspend fun handleCoroutineTest(
     val queryOperation = async {
         val pingPong = client.get("http://localhost:9876/ping")
             .bodyAsText()
-        dbSess.single(
-            queryOf(
-                "SELECT count(*) c from user_t WHERE email != ?",
-                pingPong
-            ),
-            ::mapFromRow
-        )
+        // Execute blocking call in a separate thread pool, designated for long-running blocking I/O operations such as database queries.
+        // Note that this is just an example and not needed in this particular case.
+        withContext(Dispatchers.IO) {
+            dbSess.single(
+                queryOf(
+                    "SELECT count(*) c from user_t WHERE email != ?",
+                    pingPong
+                ),
+                ::mapFromRow
+            )
+        }
     }
     TextWebResponse(
         """
