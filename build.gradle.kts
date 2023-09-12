@@ -20,6 +20,9 @@ dependencies {
     // CIO (coroutine I/O) based backend for ktor-client
     implementation("io.ktor:ktor-client-cio:2.1.2")
 
+    implementation("io.arrow-kt:arrow-fx-coroutines:1.1.2")
+    implementation("io.arrow-kt:arrow-fx-stm:1.1.2")
+
     implementation("com.zaxxer:HikariCP:5.0.1")
     implementation("com.h2database:h2:2.1.214")
     implementation("org.flywaydb:flyway-core:9.5.1")
