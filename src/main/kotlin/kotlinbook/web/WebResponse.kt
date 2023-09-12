@@ -1,4 +1,4 @@
-package kotlinbook
+package kotlinbook.web
 
 sealed class WebResponse {
     abstract val statusCode: Int

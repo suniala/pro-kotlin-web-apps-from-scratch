@@ -1,4 +1,4 @@
-package kotlinbook
+package kotlinbook.db
 
 import kotlinbook.test.testTx
 import kotlin.test.Test
@@ -49,14 +49,18 @@ class UserTest {
     fun testListUsers() {
         testTx { dbSess ->
             val usersBefore = listUsers(dbSess)
-            val userAId = createUser(dbSess,
+            val userAId = createUser(
+                dbSess,
                 email = "augustlilleaas@me.com",
                 name = "August Lilleaas",
-                passwordText = "1234")
-            val userBId = createUser(dbSess,
+                passwordText = "1234"
+            )
+            val userBId = createUser(
+                dbSess,
                 email = "august@augustl.com",
                 name = "August Lilleaas",
-                passwordText = "1234")
+                passwordText = "1234"
+            )
             val users = listUsers(dbSess)
 
             // Do a relative assert because db already had some users due to migrations
@@ -69,7 +73,8 @@ class UserTest {
     @Test
     fun testGetUser() {
         testTx { dbSess ->
-            val userId = createUser(dbSess,
+            val userId = createUser(
+                dbSess,
                 email = "augustlilleaas@me.com",
                 name = "August Lilleaas",
                 passwordText = "1234",

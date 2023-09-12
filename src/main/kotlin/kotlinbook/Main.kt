@@ -1,40 +1,36 @@
 package kotlinbook
 
-import com.google.gson.Gson
 import com.typesafe.config.ConfigFactory
 import com.zaxxer.hikari.HikariDataSource
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.request.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.util.pipeline.*
-import kotlinbook.WebResponse.JsonWebResponse
-import kotlinbook.WebResponse.TextWebResponse
+import kotlinbook.web.WebResponse.JsonWebResponse
+import kotlinbook.web.WebResponse.TextWebResponse
+import kotlinbook.db.User
+import kotlinbook.db.DBSupport.dbSavePoint
+import kotlinbook.db.DBSupport.mapFromRow
+import kotlinbook.util.TestDataGenerator
+import kotlinbook.web.WebResponseSupport.webResponse
+import kotlinbook.web.WebResponseSupport.webResponseDb
+import kotlinbook.web.WebResponseSupport.webResponseTx
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotliquery.Row
 import kotliquery.Session
-import kotliquery.TransactionalSession
 import kotliquery.queryOf
-import kotliquery.sessionOf
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
-import java.lang.RuntimeException
 import java.util.Date
-import java.util.Random
 import javax.sql.DataSource
-import kotlin.random.asKotlinRandom
 
 private val log = LoggerFactory.getLogger("kotlinbook.Main")
 
@@ -75,13 +71,6 @@ fun migrateDataSource(dataSource: DataSource) {
 fun createAndMigrateDataSource(config: WebappConfig) =
     createDataSource(config).also(::migrateDataSource)
 
-fun mapFromRow(row: Row): Map<String, Any?> {
-    return row.underlying.metaData
-        .let { (1..it.columnCount).map(it::getColumnName) }
-        .map { it to row.anyOrNull(it) }
-        .toMap()
-}
-
 fun createAppConfig(env: String): WebappConfig =
     ConfigFactory
         .parseResources("app-${env}.conf")
@@ -96,135 +85,6 @@ fun createAppConfig(env: String): WebappConfig =
             )
         }
 
-
-class KtorJsonWebResponse(val body: Any?, override val status: HttpStatusCode = HttpStatusCode.OK) :
-    OutgoingContent.ByteArrayContent() {
-    override val contentType: ContentType = ContentType.Application.Json.withCharset(Charsets.UTF_8)
-
-    override fun bytes() = Gson().toJson(body).toByteArray(Charsets.UTF_8)
-}
-
-fun webResponse(handler: suspend PipelineContext<Unit, ApplicationCall>.() -> WebResponse): PipelineInterceptor<Unit, ApplicationCall> {
-    return {
-        val resp = this.handler()
-        val statusCode = HttpStatusCode.fromValue(resp.statusCode)
-
-        for ((name, values) in resp.headers()) {
-            for (value in values) {
-                call.response.header(name, value)
-            }
-        }
-
-        when (resp) {
-            is TextWebResponse -> {
-                call.respondText(text = resp.body, status = statusCode)
-            }
-
-            is JsonWebResponse -> {
-                call.respond(KtorJsonWebResponse(body = resp.body, status = statusCode))
-            }
-        }
-    }
-}
-
-fun webResponseDb(
-    dataSource: DataSource,
-    handler: suspend PipelineContext<Unit, ApplicationCall>.(
-        dbSess: Session,
-    ) -> WebResponse,
-) = webResponse {
-    sessionOf(
-        dataSource,
-        returnGeneratedKey = true
-    ).use { dbSess ->
-        handler(dbSess)
-    }
-}
-
-fun webResponseTx(
-    dataSource: DataSource,
-    handler: suspend PipelineContext<Unit, ApplicationCall>.(
-        dbSess: TransactionalSession,
-    ) -> WebResponse,
-) = webResponseDb(dataSource) { dbSess ->
-    dbSess.transaction { txSess ->
-        handler(txSess)
-    }
-}
-
-fun <A> dbSavePoint(dbSess: Session, body: () -> A): A {
-    val sp = dbSess.connection.underlying.setSavepoint()
-    return try {
-        body().also {
-            dbSess.connection.underlying.releaseSavepoint(sp)
-        }
-    } catch (e: Throwable) {
-        log.warn("Got exception, will rollback")
-        dbSess.connection.underlying.rollback(sp)
-        throw e
-    }
-}
-
-data class User(
-    val id: Long,
-    val email: String,
-    val tosAccepted: Boolean,
-    val name: String?,
-) {
-    companion object {
-        fun fromRow(row: Map<String, Any?>) = User(
-            id = row["id"] as Long,
-            email = row["email"] as String,
-            name = row["name"] as? String,
-            tosAccepted = row["tos_accepted"] as Boolean,
-        )
-    }
-}
-
-fun createUser(
-    dbSession: Session,
-    email: String,
-    name: String,
-    passwordText: String,
-    tosAccepted: Boolean = false,
-): Long {
-    val userId = dbSession.updateAndReturnGeneratedKey(
-        queryOf(
-            """
-              INSERT INTO user_t
-              (email, name, tos_accepted, password_hash)
-              VALUES (:email, :name, :tosAccepted, :passwordHash)
-              """,
-            mapOf(
-                "email" to email,
-                "name" to name,
-                "tosAccepted" to tosAccepted,
-                "passwordHash" to passwordText
-                    .toByteArray(Charsets.UTF_8)
-            )
-        )
-    )
-    return checkNotNull(userId)
-}
-
-fun getUser(dbSess: Session, id: Long): User? {
-    return dbSess
-        .single(
-            queryOf("SELECT * FROM user_t WHERE id = ?", id),
-            ::mapFromRow
-        )
-        ?.let(User::fromRow)
-}
-
-fun listUsers(dbSession: Session) =
-    dbSession
-        .list(queryOf("SELECT * FROM user_t"), ::mapFromRow)
-        .map(User::fromRow)
-
-object TestDataGenerator {
-    private val rnd = Random().asKotlinRandom()
-    fun username() = "Name${rnd.nextLong(100, 1000)}"
-}
 
 fun Application.createFakeServiceKtorApplication() {
     routing {
