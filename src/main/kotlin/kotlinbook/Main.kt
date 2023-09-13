@@ -8,6 +8,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
+import io.ktor.server.html.*
 import io.ktor.server.netty.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
@@ -25,6 +26,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.html.body
+import kotlinx.html.h1
+import kotlinx.html.title
+import kotlinx.html.head
 import kotliquery.Session
 import kotliquery.queryOf
 import org.flywaydb.core.Flyway
@@ -231,5 +236,15 @@ fun Application.createKtorApplication(dataSource: DataSource) {
 
             JsonWebResponse(firstTransactionUserIdAfterSecondTransactionRollback)
         })
+        get("/test/html") {
+            call.respondHtml {
+                head {
+                    title("Hello, World!")
+                }
+                body {
+                    h1 { +"Hello, World!" }
+                }
+            }
+        }
     }
 }
