@@ -9,6 +9,7 @@ import io.ktor.client.statement.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.html.*
+import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
@@ -30,6 +31,7 @@ import kotlinx.html.body
 import kotlinx.html.h1
 import kotlinx.html.title
 import kotlinx.html.head
+import kotlinx.html.styleLink
 import kotliquery.Session
 import kotliquery.queryOf
 import org.flywaydb.core.Flyway
@@ -148,6 +150,9 @@ fun Application.createKtorApplication(dataSource: DataSource) {
     val log = LoggerFactory.getLogger("kotlinbook.Application")
 
     routing {
+        static("/") {
+            resources("public")
+        }
         get("/", webResponse {
             TextWebResponse("Hello, World!").header("x-asdf", Date().toString())
         })
@@ -240,6 +245,7 @@ fun Application.createKtorApplication(dataSource: DataSource) {
             call.respondHtml {
                 head {
                     title("Hello, World!")
+                    styleLink("/app.css")
                 }
                 body {
                     h1 { +"Hello, World!" }
