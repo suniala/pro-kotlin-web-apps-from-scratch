@@ -1,6 +1,7 @@
 package kotlinbook.db
 
 import kotlinbook.db.DBSupport.mapFromRow
+import kotlinbook.web.bcryptHasher
 import kotliquery.Session
 import kotliquery.queryOf
 
@@ -38,8 +39,10 @@ fun createUser(
                 "email" to email,
                 "name" to name,
                 "tosAccepted" to tosAccepted,
-                "passwordHash" to passwordText
-                    .toByteArray(Charsets.UTF_8)
+                "passwordHash" to bcryptHasher.hash(
+                    10,
+                    passwordText.toByteArray(Charsets.UTF_8)
+                )
             )
         )
     )
