@@ -7,6 +7,7 @@ data class WebappConfig(
     val dbUser: String,
     val dbPassword: String,
     val dbUrl: String,
+    val useFileSystemAssets: Boolean,
 ) {
     fun formatForLogging(): String = WebappConfig::class.declaredMemberProperties
         .sortedBy { it.name }

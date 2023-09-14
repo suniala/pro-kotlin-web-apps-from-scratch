@@ -54,7 +54,7 @@ fun main() {
 
         embeddedServer(Netty, port = config.httpPort) {
             val dataSource = createAndMigrateDataSource(config)
-            createKtorApplication(dataSource)
+            createKtorApplication(config, dataSource)
         }.start(wait = true)
     }
 }
@@ -88,7 +88,8 @@ fun createAppConfig(env: String): WebappConfig =
                 httpPort = it.getInt("httpPort"),
                 dbUser = it.getString("dbUser"),
                 dbPassword = it.getString("dbPassword"),
-                dbUrl = it.getString("dbUrl")
+                dbUrl = it.getString("dbUrl"),
+                useFileSystemAssets = it.getBoolean("useFileSystemAssets"),
             )
         }
 
@@ -146,12 +147,16 @@ suspend fun handleCoroutineTest(
     )
 }
 
-fun Application.createKtorApplication(dataSource: DataSource) {
+fun Application.createKtorApplication(appConfig: WebappConfig, dataSource: DataSource) {
     val log = LoggerFactory.getLogger("kotlinbook.Application")
 
     routing {
         static("/") {
-            resources("public")
+            if (appConfig.useFileSystemAssets) {
+                files("src/main/resources/public")
+            } else {
+                resources("public")
+            }
         }
         get("/", webResponse {
             TextWebResponse("Hello, World!").header("x-asdf", Date().toString())
