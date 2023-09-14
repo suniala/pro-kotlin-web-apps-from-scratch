@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
+import io.ktor.server.html.*
 import io.ktor.server.response.*
 import io.ktor.util.pipeline.*
 import kotliquery.Session
@@ -37,6 +38,14 @@ object WebResponseSupport {
 
                 is WebResponse.JsonWebResponse -> {
                     call.respond(KtorJsonWebResponse(body = resp.body, status = statusCode))
+                }
+
+                is WebResponse.HtmlWebResponse -> {
+                    call.respondHtml(statusCode) {
+                        // resp.body.apply() would call the wrong function. Use "with" to go around the problem.
+                        // (Because in blocks with a default receiver, that receiver and its methods take precedence.)
+                        with(resp.body) { apply() }
+                    }
                 }
             }
         }

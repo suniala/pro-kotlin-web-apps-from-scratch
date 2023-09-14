@@ -8,18 +8,18 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
-import io.ktor.server.html.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
-import kotlinbook.web.WebResponse.JsonWebResponse
-import kotlinbook.web.WebResponse.TextWebResponse
-import kotlinbook.db.User
 import kotlinbook.db.DBSupport.dbSavePoint
 import kotlinbook.db.DBSupport.mapFromRow
+import kotlinbook.db.User
 import kotlinbook.ui.AppLayout
 import kotlinbook.util.TestDataGenerator
+import kotlinbook.web.WebResponse
+import kotlinbook.web.WebResponse.JsonWebResponse
+import kotlinbook.web.WebResponse.TextWebResponse
 import kotlinbook.web.WebResponseSupport.webResponse
 import kotlinbook.web.WebResponseSupport.webResponseDb
 import kotlinbook.web.WebResponseSupport.webResponseTx
@@ -28,11 +28,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.html.body
 import kotlinx.html.h1
-import kotlinx.html.title
-import kotlinx.html.head
-import kotlinx.html.styleLink
 import kotliquery.Session
 import kotliquery.queryOf
 import org.flywaydb.core.Flyway
@@ -247,14 +243,14 @@ fun Application.createKtorApplication(appConfig: WebappConfig, dataSource: DataS
 
             JsonWebResponse(firstTransactionUserIdAfterSecondTransactionRollback)
         })
-        get("/test/html") {
-            call.respondHtmlTemplate(AppLayout("Hello, world!")) {
+        get("/test/html", webResponse {
+            WebResponse.HtmlWebResponse(AppLayout("Hello, world!").apply {
                 pageBody {
                     h1 {
-                        +"Hello, World!"
+                        +"Hello, readers!"
                     }
                 }
-            }
-        }
+            })
+        })
     }
 }

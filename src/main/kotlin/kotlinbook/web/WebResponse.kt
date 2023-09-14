@@ -1,5 +1,8 @@
 package kotlinbook.web
 
+import io.ktor.server.html.*
+import kotlinx.html.HTML
+
 sealed class WebResponse {
     abstract val statusCode: Int
     abstract val headers: Map<String, List<String>>
@@ -43,5 +46,17 @@ sealed class WebResponse {
     ) : WebResponse() {
         override fun copyResponse(statusCode: Int, headers: Map<String, List<String>>): WebResponse =
             copy(body = body, statusCode = statusCode, headers = headers)
+    }
+
+    data class HtmlWebResponse(
+        val body: Template<HTML>,
+        override val statusCode: Int = 200,
+        override val headers: Map<String, List<String>> = mapOf(),
+    ) : WebResponse() {
+        override fun copyResponse(
+            statusCode: Int,
+            headers: Map<String, List<String>>
+        ) =
+            copy(body, statusCode, headers)
     }
 }
