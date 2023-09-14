@@ -18,6 +18,7 @@ import kotlinbook.web.WebResponse.TextWebResponse
 import kotlinbook.db.User
 import kotlinbook.db.DBSupport.dbSavePoint
 import kotlinbook.db.DBSupport.mapFromRow
+import kotlinbook.ui.AppLayout
 import kotlinbook.util.TestDataGenerator
 import kotlinbook.web.WebResponseSupport.webResponse
 import kotlinbook.web.WebResponseSupport.webResponseDb
@@ -247,13 +248,11 @@ fun Application.createKtorApplication(appConfig: WebappConfig, dataSource: DataS
             JsonWebResponse(firstTransactionUserIdAfterSecondTransactionRollback)
         })
         get("/test/html") {
-            call.respondHtml {
-                head {
-                    title("Hello, World!")
-                    styleLink("/app.css")
-                }
-                body {
-                    h1 { +"Hello, World!" }
+            call.respondHtmlTemplate(AppLayout("Hello, world!")) {
+                pageBody {
+                    h1 {
+                        +"Hello, World!"
+                    }
                 }
             }
         }
