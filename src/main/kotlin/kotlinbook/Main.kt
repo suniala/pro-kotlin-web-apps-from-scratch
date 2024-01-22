@@ -7,14 +7,19 @@ import io.ktor.client.engine.cio.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.server.engine.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.request.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.sessions.*
+import io.ktor.util.*
 import kotlinbook.db.DBSupport.dbSavePoint
 import kotlinbook.db.DBSupport.mapFromRow
 import kotlinbook.db.User
+import kotlinbook.db.getUser
 import kotlinbook.ui.AppLayout
 import kotlinbook.util.TestDataGenerator
 import kotlinbook.web.WebResponse
@@ -23,17 +28,15 @@ import kotlinbook.web.WebResponse.TextWebResponse
 import kotlinbook.web.WebResponseSupport.webResponse
 import kotlinbook.web.WebResponseSupport.webResponseDb
 import kotlinbook.web.WebResponseSupport.webResponseTx
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import kotlinx.html.h1
+import kotlinbook.web.authenticateUser
+import kotlinx.coroutines.*
+import kotlinx.html.*
 import kotliquery.Session
 import kotliquery.queryOf
+import kotliquery.sessionOf
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
-import java.util.Date
+import java.util.*
 import javax.sql.DataSource
 
 private val log = LoggerFactory.getLogger("kotlinbook.Main")
@@ -51,6 +54,7 @@ fun main() {
 
         embeddedServer(Netty, port = config.httpPort) {
             val dataSource = createAndMigrateDataSource(config)
+            setUpKtorCookieSecurity(config, dataSource)
             createKtorApplication(config, dataSource)
         }.start(wait = true)
     }
@@ -87,6 +91,9 @@ fun createAppConfig(env: String): WebappConfig =
                 dbPassword = it.getString("dbPassword"),
                 dbUrl = it.getString("dbUrl"),
                 useFileSystemAssets = it.getBoolean("useFileSystemAssets"),
+                useSecureCookie = it.getBoolean("useSecureCookie"),
+                cookieEncryptionKey = it.getString("cookieEncryptionKey"),
+                cookieSigningKey = it.getString("cookieSigningKey"),
             )
         }
 
@@ -142,6 +149,109 @@ suspend fun handleCoroutineTest(
             Query: ${queryOperation.await()}
         """.trimIndent()
     )
+}
+
+/**
+ * This will be sent to the browser (encrypted) so remember the limit of 4 kilobytes.
+ */
+data class UserSession(val userId: Long): Principal
+
+/**
+ * To separate our authentication setup from the rest of our routes, we’ll set up authentication and
+ * authenticated routes here.
+ */
+fun Application.setUpKtorCookieSecurity (
+    appConfig: WebappConfig,
+    dataSource: DataSource
+) {
+    install(Sessions) {
+        cookie<UserSession>("user-session") {
+            transform(
+                // Encrypt and sign the cookie
+                SessionTransportTransformerEncrypt(
+                    hex(appConfig.cookieEncryptionKey),
+                    hex(appConfig.cookieSigningKey)
+                )
+            )
+            cookie.maxAge = kotlin.time.Duration.parse("30d")
+            cookie.httpOnly = true
+            cookie.path = "/"
+            cookie.secure = appConfig.useSecureCookie
+            cookie.extensions["SameSite"] = "lax"
+        }
+    }
+
+    install(Authentication) {
+        session<UserSession>("auth-session") {
+            validate { session ->
+                session
+            }
+            challenge {
+                call.respondRedirect("/login")
+            }
+        }
+    }
+
+    routing {
+        get("/login", webResponse {
+            WebResponse.HtmlWebResponse(AppLayout("Log in").apply {
+                pageBody {
+                    form(method = FormMethod.post, action = "/login") {
+                        p {
+                            label { +"E-mail" }
+                            input(type = InputType.text, name = "username")
+                        }
+                        p {
+                            label { +"Password" }
+                            input(type = InputType.password, name = "password")
+                        }
+                        button(type = ButtonType.submit) { +"Log in" }
+                    }
+                }
+            })
+        })
+        post("/login") {
+            sessionOf(dataSource).use { dbSess ->
+                val params = call.receiveParameters()
+                val userId = authenticateUser(
+                    dbSess,
+                    requireNotNull(params["username"]),
+                    requireNotNull(params["password"]),
+                )
+                if (userId == null) {
+                    call.respondRedirect("/login")
+                } else {
+                    call.sessions.set(UserSession(userId = userId))
+                    call.respondRedirect("/secret")
+                }
+            }
+        }
+        authenticate("auth-session") {
+            get("/secret", webResponseDb(dataSource) { dbSess ->
+                val userSession = checkNotNull(call.principal<UserSession>())
+                val user = checkNotNull(getUser(dbSess, userSession.userId))
+                WebResponse.HtmlWebResponse(
+                    AppLayout("Welcome, ${user.email}").apply {
+                        pageBody {
+                            h1 {
+                                +"Hello there, ${user.email}"
+                            }
+                            p { +"You're logged in." }
+                            p {
+                                a(href = "/logout") { +"Log out" }
+                            }
+                        }
+                    }
+                )
+            })
+        }
+        authenticate("auth-session") {
+            get("/logout") {
+                call.sessions.clear<UserSession>()
+                call.respondRedirect("/login")
+            }
+        }
+    }
 }
 
 fun Application.createKtorApplication(appConfig: WebappConfig, dataSource: DataSource) {

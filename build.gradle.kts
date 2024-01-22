@@ -20,6 +20,9 @@ dependencies {
     // CIO (coroutine I/O) based backend for ktor-client
     implementation("io.ktor:ktor-client-cio:2.1.2")
 
+    implementation("io.ktor:ktor-server-auth:2.1.2")
+    implementation("io.ktor:ktor-server-sessions:2.1.2")
+
     implementation("io.arrow-kt:arrow-fx-coroutines:1.1.2")
     implementation("io.arrow-kt:arrow-fx-stm:1.1.2")
 

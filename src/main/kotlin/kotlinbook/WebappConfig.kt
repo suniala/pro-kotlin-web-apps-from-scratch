@@ -8,6 +8,9 @@ data class WebappConfig(
     val dbPassword: String,
     val dbUrl: String,
     val useFileSystemAssets: Boolean,
+    val useSecureCookie: Boolean,
+    val cookieEncryptionKey: String,
+    val cookieSigningKey: String,
 ) {
     fun formatForLogging(): String = WebappConfig::class.declaredMemberProperties
         .sortedBy { it.name }
