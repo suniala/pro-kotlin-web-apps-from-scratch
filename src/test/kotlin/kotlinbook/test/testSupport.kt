@@ -1,7 +1,7 @@
 package kotlinbook.test
 
-import kotlinbook.createAndMigrateDataSource
-import kotlinbook.createAppConfig
+import kotlinbook.config.createAndMigrateDataSource
+import kotlinbook.config.createAppConfig
 import kotliquery.TransactionalSession
 import kotliquery.sessionOf
 
