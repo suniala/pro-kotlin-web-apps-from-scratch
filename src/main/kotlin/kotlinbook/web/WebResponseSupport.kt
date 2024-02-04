@@ -6,6 +6,7 @@ import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.html.*
 import io.ktor.server.response.*
+import io.ktor.server.thymeleaf.*
 import io.ktor.util.pipeline.*
 import kotliquery.Session
 import kotliquery.TransactionalSession
@@ -47,6 +48,9 @@ object WebResponseSupport {
                         with(resp.body) { apply() }
                     }
                 }
+
+                is WebResponse.ThymeleafWebResponse ->
+                    call.respond(statusCode, ThymeleafContent(resp.template, resp.model))
             }
         }
     }

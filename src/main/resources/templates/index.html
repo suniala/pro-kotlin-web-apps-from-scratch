@@ -1,0 +1,20 @@
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <script src="webjars/htmx.org/1.9.4/dist/htmx.min.js"></script>
+    <script src="webjars/htmx.org/1.9.4/dist/ext/json-enc.js"></script>
+    <script src="webjars/htmx.org/1.9.4/dist/ext/sse.js"></script>
+    <title>HTXM Demo - Kotlinbook</title>
+</head>
+<body>
+<h1>HTMX Demo</h1>
+<button hx-get="/htmx/click-me" hx-swap="outerHTML">Click me!</button>
+<ol>
+    <li th:each="item : ${listItems}"
+        th:id="'listItem' + ${item.id}"
+        th:hx-get="'/htmx/list-item/' + ${item.id}"
+        hx-swap="outerHTML"
+        th:text="'List item ' + ${item.id} + ' updated at ' + ${item.time}">
+    </li>
+</ol>
+</body>
+</html>

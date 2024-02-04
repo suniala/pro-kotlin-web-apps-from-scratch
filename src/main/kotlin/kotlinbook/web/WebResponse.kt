@@ -59,4 +59,17 @@ sealed class WebResponse {
         ) =
             copy(body, statusCode, headers)
     }
+
+    data class ThymeleafWebResponse(
+        val template: String,
+        val model: Map<String, Any> = emptyMap(),
+        override val statusCode: Int = 200,
+        override val headers: Map<String, List<String>> = mapOf(),
+    ) : WebResponse() {
+        override fun copyResponse(
+            statusCode: Int,
+            headers: Map<String, List<String>>
+        ) =
+            copy(template, model, statusCode, headers)
+    }
 }
