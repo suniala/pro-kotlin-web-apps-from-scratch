@@ -1,11 +1,13 @@
 package kotlinbook
 
 import io.ktor.server.application.*
+import io.ktor.server.html.*
 import io.ktor.server.routing.*
 import io.ktor.server.thymeleaf.*
 import io.ktor.server.webjars.*
 import kotlinbook.web.WebResponse
 import kotlinbook.web.WebResponseSupport
+import kotlinx.html.*
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver
 import java.time.LocalTime
 
@@ -37,13 +39,29 @@ fun Application.initHtmxRoutes() {
             WebResponse.TextWebResponse("error", statusCode = 500)
         })
         get("/htmx/list-item/{id}", WebResponseSupport.webResponse {
-            val id = checkNotNull(call.parameters["id"]).toInt()
-            WebResponse.ThymeleafWebResponse(
-                "list-item",
-                mapOf(
-                    "item" to ListItem(id, LocalTime.now())
-                )
-            )
+            val listItemId = checkNotNull(call.parameters["id"]).toInt()
+            WebResponse.HtmlWebResponse(FragmentLayout().apply {
+                fragment {
+                    ol {
+                        li {
+                            id = "listItem$listItemId"
+                            attributes["hx-get"] = "/htmx/list-item/$listItemId"
+                            attributes["hx-swap"] = "outerHTML"
+                            attributes["hx-select"] = "li"
+                            +"List item $listItemId updated at ${LocalTime.now()}"
+                        }
+                    }
+                }
+            })
         })
+    }
+}
+
+private class FragmentLayout() : Template<HTML> {
+    val fragment = Placeholder<BODY>()
+    override fun HTML.apply() {
+        body {
+            insert(fragment)
+        }
     }
 }

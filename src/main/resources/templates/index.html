@@ -14,6 +14,7 @@
         th:id="'listItem' + ${item.id}"
         th:hx-get="'/htmx/list-item/' + ${item.id}"
         hx-swap="outerHTML"
+        hx-select="li"
         th:text="'List item ' + ${item.id} + ' updated at ' + ${item.time}">
     </li>
 </ol>

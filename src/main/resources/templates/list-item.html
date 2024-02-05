@@ -1,8 +1,0 @@
-<html xmlns:th="http://www.thymeleaf.org">
-<li
-    th:id="'listItem' + ${item.id}"
-    th:hx-get="'/htmx/list-item/' + ${item.id}"
-    hx-swap="outerHTML"
-    th:text="'List item ' + ${item.id} + ' updated at ' + ${item.time}">
-</li>
-</html>
