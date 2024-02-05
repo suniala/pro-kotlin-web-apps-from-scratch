@@ -33,10 +33,14 @@ fun Application.initHtmxRoutes() {
         get("/htmx/click-me", WebResponseSupport.webResponse {
             WebResponse.ThymeleafWebResponse("click-me")
         })
+        get("/htmx/get-error", WebResponseSupport.webResponse {
+            WebResponse.TextWebResponse("error", statusCode = 500)
+        })
         get("/htmx/list-item/{id}", WebResponseSupport.webResponse {
             val id = checkNotNull(call.parameters["id"]).toInt()
             WebResponse.ThymeleafWebResponse(
-                "list-item", mapOf(
+                "list-item",
+                mapOf(
                     "item" to ListItem(id, LocalTime.now())
                 )
             )

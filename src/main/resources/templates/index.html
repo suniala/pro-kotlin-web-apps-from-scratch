@@ -1,4 +1,4 @@
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns="http://www.w3.org/1999/html">
 <head>
     <script src="webjars/htmx.org/1.9.4/dist/htmx.min.js"></script>
     <script src="webjars/htmx.org/1.9.4/dist/ext/json-enc.js"></script>
@@ -8,6 +8,7 @@
 <body>
 <h1>HTMX Demo</h1>
 <button hx-get="/htmx/click-me" hx-swap="outerHTML">Click me!</button>
+<button hx-get="/htmx/get-error">Generate an error</button>
 <ol>
     <li th:each="item : ${listItems}"
         th:id="'listItem' + ${item.id}"
@@ -16,5 +17,10 @@
         th:text="'List item ' + ${item.id} + ' updated at ' + ${item.time}">
     </li>
 </ol>
+<script>
+    htmx.on("htmx:responseError", function (evt) {
+        alert('Error: ' + evt.detail.xhr.status);
+    });
+</script>
 </body>
 </html>
