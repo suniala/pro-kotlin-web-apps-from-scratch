@@ -54,6 +54,21 @@ fun Application.initHtmxRoutes() {
                 }
             })
         })
+        get("/htmx/models", WebResponseSupport.webResponse {
+            val make = checkNotNull(call.parameters["make"])
+            WebResponse.HtmlWebResponse(FragmentLayout().apply {
+                fragment {
+                    select {
+                        (1..3).map {
+                            option {
+                                value = "$make$it"
+                                +"$make$it"
+                            }
+                        }
+                    }
+                }
+            })
+        })
     }
 }
 

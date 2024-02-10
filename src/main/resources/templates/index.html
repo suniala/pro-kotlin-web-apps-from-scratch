@@ -9,6 +9,24 @@
 <h1>HTMX Demo</h1>
 <button hx-get="/htmx/click-me" hx-swap="outerHTML">Click me!</button>
 <button hx-get="/htmx/get-error">Generate an error</button>
+<div>
+    <div>
+        <label>Make</label>
+        <select name="make" hx-get="/htmx/models" hx-target="#models" hx-select="option" hx-indicator=".htmx-indicator">
+            <option value="audi">Audi</option>
+            <option value="toyota">Toyota</option>
+            <option value="bmw">BMW</option>
+        </select>
+    </div>
+    <div>
+        <label>Model</label>
+        <select id="models" name="model">
+            <option value="audi1">Audi1</option>
+            <option value="audi2">Audi2</option>
+            <option value="audi3">Audi3</option>
+        </select>
+    </div>
+</div>
 <ol>
     <li th:each="item : ${listItems}"
         th:id="'listItem' + ${item.id}"
