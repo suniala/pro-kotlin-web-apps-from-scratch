@@ -26,7 +26,6 @@ dependencies {
     // htmx
     implementation("io.ktor:ktor-server-webjars-jvm:2.2.4")
     implementation("org.webjars.npm:htmx.org:1.9.4")
-    implementation("io.ktor:ktor-server-thymeleaf:2.2.4")
 
     implementation("io.arrow-kt:arrow-fx-coroutines:1.1.5")
     implementation("io.arrow-kt:arrow-fx-stm:1.1.5")
