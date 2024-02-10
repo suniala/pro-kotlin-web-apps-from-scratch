@@ -6,22 +6,46 @@ import io.ktor.server.routing.*
 import io.ktor.server.webjars.*
 import kotlinbook.Fragments.listItem
 import kotlinbook.Fragments.suburbSelect
+import kotlinbook.db.DBSupport
 import kotlinbook.web.WebResponse
 import kotlinbook.web.WebResponseSupport
 import kotlinx.html.*
+import kotliquery.queryOf
 import java.time.LocalTime
+import javax.sql.DataSource
 
-val models = mapOf(
-    "Tampere" to listOf("Tammela", "Teisko", "Tohloppi"),
-    "Helsinki" to listOf("Hakaniemi", "Hietaniemi", "Hermanni")
-)
+data class Town(val id: Long, val name: String) {
+    companion object {
+        fun fromRow(row: Map<String, Any?>): Town = Town(
+            id = row["id"] as Long,
+            name = row["name"] as String,
+        )
+    }
+}
 
-fun Application.initHtmxRoutes() {
+data class Suburb(val id: Long, val townId: Long, val name: String) {
+    companion object {
+        fun fromRow(row: Map<String, Any?>): Suburb = Suburb(
+            id = row["id"] as Long,
+            townId = row["town_id"] as Long,
+            name = row["name"] as String,
+        )
+    }
+}
+
+fun Application.initHtmxRoutes(dataSource: DataSource) {
     install(Webjars)
 
     routing {
-        get("/htmx", WebResponseSupport.webResponse {
-            val town = models.entries.first().key
+        get("/htmx", WebResponseSupport.webResponseDb(dataSource) { dbSess ->
+            val towns = dbSess.list(queryOf("select id, name from town order by name"), DBSupport::mapFromRow)
+                .map(Town.Companion::fromRow)
+            val suburbs = dbSess.list(
+                queryOf(
+                    "select id, town_id, name from suburb where town_id = :town_id order by name",
+                    mapOf("town_id" to towns.first().id)
+                ), DBSupport::mapFromRow
+            ).map(Suburb.Companion::fromRow)
 
             WebResponse.HtmlWebResponse(HtmxLayout("HTMX").apply {
                 pageBody {
@@ -49,14 +73,14 @@ fun Application.initHtmxRoutes() {
                             }
                             select {
                                 id = "town"
-                                attributes["name"] = "town"
+                                attributes["name"] = "town_id"
                                 attributes["hx-get"] = "/htmx/suburbs"
                                 attributes["hx-target"] = "#suburb"
                                 attributes["hx-select"] = "option"
-                                models.map {
+                                towns.map {
                                     option {
-                                        attributes["value"] = it.key
-                                        +it.key
+                                        attributes["value"] = "${it.id}"
+                                        +it.name
                                     }
                                 }
                             }
@@ -67,7 +91,7 @@ fun Application.initHtmxRoutes() {
                             attributes["for"] = "suburb"
                             +"Suburb: "
                         }
-                        suburbSelect(town)
+                        suburbSelect(suburbs)
                     }
                     ol {
                         (1..100).map {
@@ -97,11 +121,18 @@ fun Application.initHtmxRoutes() {
                 }
             })
         })
-        get("/htmx/suburbs", WebResponseSupport.webResponse {
-            val town = checkNotNull(call.parameters["town"])
+        get("/htmx/suburbs", WebResponseSupport.webResponseDb(dataSource) { dbSess ->
+            val townId = checkNotNull(call.parameters["town_id"]).toLong()
+            val suburbs = dbSess.list(
+                queryOf(
+                    "select id, town_id, name from suburb where town_id = :town_id order by name",
+                    mapOf("town_id" to townId)
+                ), DBSupport::mapFromRow
+            ).map(Suburb.Companion::fromRow)
+
             WebResponse.HtmlWebResponse(FragmentLayout().apply {
                 fragment {
-                    suburbSelect(town)
+                    suburbSelect(suburbs)
                 }
             })
         })
@@ -119,15 +150,15 @@ object Fragments {
         }
     }
 
-    fun FlowContent.suburbSelect(town: String) {
+    fun FlowContent.suburbSelect(suburbs: List<Suburb>) {
         select {
             id = "suburb"
             name = "suburb"
 
-            checkNotNull(models[town]).map {
+            suburbs.map {
                 option {
-                    attributes["value"] = it
-                    +it
+                    attributes["value"] = "${it.id}"
+                    +it.name
                 }
             }
         }

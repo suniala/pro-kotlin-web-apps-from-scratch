@@ -23,7 +23,7 @@ fun main() {
             val dataSource = createAndMigrateDataSource(config)
             initSessionRoutes(config, dataSource)
             initPublicRoutes(config, dataSource)
-            initHtmxRoutes()
+            initHtmxRoutes(dataSource)
         }.start(wait = true)
     }
 }
